@@ -351,15 +351,15 @@
             console.log("Status update:", data);
             if (lastOrderId && data.orderId === lastOrderId) {
                 if (data.status === 'verified') {
-                    alert("Paid");
+                    alert(data.message); // "Come for the delivery..."
                     const msg = document.getElementById('message');
                     msg.className = 'success';
-                    msg.innerHTML = "<h2>✅ PAID</h2><p>Come for your order within 5 minutes.</p>";
+                    msg.innerHTML = `<h2>✅ PAID</h2><p>${data.message}</p>`; // Show specific message
                 } else if (data.status === 'payment_failed') {
-                    alert("Wrong payment details");
+                    alert(data.message); // "Payment details provided were wrong"
                     const msg = document.getElementById('message');
                     msg.className = 'error';
-                    msg.innerHTML = "<h2>❌ Wrong payment details</h2><p>Please check your M-Pesa code.</p>";
+                    msg.innerHTML = `<h2>❌ Payment Failed</h2><p>${data.message}</p>`;
                 }
             }
         });

@@ -50,11 +50,11 @@ router.put('/orders/:id/status', async (req, res) => {
 router.put('/orders/:id/verify', async (req, res) => {
     const o = await Order.findByIdAndUpdate(req.params.id, { status: 'verified' }, { new: true });
 
-    const io = req.app.get('io');
+    // Verify Payment
     io.emit('orderStatusChanged', {
         orderId: o._id,
         status: 'verified',
-        message: "Come for your order within 5 minutes"
+        message: "Come for the delivery within 5 minutes"
     });
 
     res.json(o);
@@ -68,7 +68,7 @@ router.put('/orders/:id/reject', async (req, res) => {
     io.emit('orderStatusChanged', {
         orderId: o._id,
         status: 'payment_failed',
-        message: "Payment details are wrong"
+        message: "Payment details provided were wrong"
     });
 
     res.json(o);
