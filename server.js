@@ -21,6 +21,17 @@ app.use(bodyParser.json());
 // make io available in req.app.locals
 app.set('io', io);
 
+// DEBUG ROUTE (Temporary)
+app.get('/api/debug-status', (req, res) => {
+    res.json({
+        status: 'online',
+        timestamp: new Date().toISOString(),
+        telegramConfigured: !!process.env.TELEGRAM_BOT_TOKEN && !!process.env.TELEGRAM_CHAT_ID,
+        telegramTokenLength: process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.length : 0,
+        env: process.env.NODE_ENV || 'development'
+    });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
