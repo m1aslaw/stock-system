@@ -322,10 +322,13 @@
       }
 
       try {
-        // Using existing register endpoint. Since we are admin, we are just automating the creation.
-        const res = await fetch('/api/auth/register', {
+        // Use new Admin Endpoint which auto-approves
+        const res = await fetch('/api/admin/users', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}` // Must include token
+          },
           body: JSON.stringify({ name, email, password })
         });
         const data = await res.json();

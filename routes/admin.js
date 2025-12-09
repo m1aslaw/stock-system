@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { authMiddleware, adminOnly } = require('../middleware/authMiddleware');
+const bcrypt = require('bcryptjs');
 
 // all routes here require admin
 router.use(authMiddleware, adminOnly);
@@ -83,6 +84,21 @@ router.get('/users', async (req, res) => {
 router.put('/users/:id/approve', async (req, res) => {
     const u = await User.findByIdAndUpdate(req.params.id, { isApproved: true }, { new: true });
     res.json(u);
+});
+
+// create approved user (admin only)
+const bcrypt = require('bcryptjs'); // ensure bcrypt is required if not already at top, but usually it is in header. Wait, admin.js might not have bcrypt.
+router.post('/users', async (req, res) => {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ message: 'Missing fields' });
+    try {
+        const hashed = await bcrypt.hash(password, 10);
+        const user = new User({ name, email, password: hashed, isApproved: true }); // Auto-approve
+        await user.save();
+        res.json({ message: 'User created and approved', user });
+    } catch (err) {
+        res.status(400).json({ message: 'Error creating user', error: err.message });
+    }
 });
 
 // RESET SYSTEM (Delete all orders, Set stock to 0)
