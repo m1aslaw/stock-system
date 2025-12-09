@@ -50,15 +50,16 @@ router.post('/', authMiddleware, async (req, res) => {
         }).join('\n');
 
         const text = `<b>New Order</b>\nCustomer: ${user.name}\nTotal: KES ${total}\nLocation: ${deliveryLocation}\nPaid: ${paymentDetails}\nItems:\n${prettyItems}\nOrder ID: ${order._id}`;
+        console.log('Sending Telegram for Order:', order._id); // DEBUG LOG
         await sendTelegramMessage(text);
 
         // Emit socket event to admin UI
         const io = req.app.get('io');
         io.emit('newOrder', { id: order._id, customer: user.name, total, items: populated.items, deliveryLocation, paymentDetails });
-
+        console.log('Order Placed Successfully:', order._id); // DEBUG LOG
         return res.json({ message: 'Order placed', order });
     } catch (err) {
-        console.error(err);
+        console.error('ORDER PLACEMENT ERROR:', err); // DEBUG LOG
         return res.status(500).json({ message: 'Server error', error: err.message });
     }
 });

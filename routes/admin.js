@@ -87,7 +87,7 @@ router.put('/users/:id/approve', async (req, res) => {
 });
 
 // create approved user (admin only)
-const bcrypt = require('bcryptjs'); // ensure bcrypt is required if not already at top, but usually it is in header. Wait, admin.js might not have bcrypt.
+// create approved user (admin only)
 router.post('/users', async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'Missing fields' });
@@ -107,6 +107,16 @@ router.post('/reset', async (req, res) => {
         await Order.deleteMany({});
         await Product.updateMany({}, { stock: 0 });
         res.json({ message: 'System Reset: Orders cleared, Stocks set to 0.' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Delete User
+router.delete('/users/:id', async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: 'User deleted' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
