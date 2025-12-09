@@ -341,7 +341,7 @@
                 localStorage.setItem('lastOrderId', lastOrderId);
 
                 msg.className = 'success';
-                msg.innerText = `✅ Order Placed! ID: ${orderData.order._id}\nWait for payment verification...`;
+                msg.innerText = `✅ Order Placed! ID: ${orderData.order._id}\n\nIF PAID, COME FOR DELIVERY WITHIN 5 MINUTES!`;
             } catch (err) {
                 msg.className = 'error';
                 msg.innerText = `❌ Error: ${err.message}`;
