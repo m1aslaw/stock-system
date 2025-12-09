@@ -30,6 +30,9 @@ app.use('/api/admin', adminRoutes);
 // server.js updates not needed for this logic change, we update index.html
 app.use('/admin', express.static(__dirname + '/admin-public'));
 app.use('/store', express.static(__dirname + '/admin-public/customer.html')); // Serve customer page
+app.get('/', (req, res) => {
+    res.redirect('/store');
+});
 
 const PORT = process.env.PORT || 4000;
 
