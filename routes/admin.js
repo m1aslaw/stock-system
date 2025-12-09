@@ -55,7 +55,7 @@ router.put('/orders/:id/verify', async (req, res) => {
     io.emit('orderStatusChanged', {
         orderId: o._id,
         status: 'verified',
-        message: "Come for the delivery within 5 minutes"
+        message: "Payment Received! Come for the delivery within 5 minutes"
     });
 
     await sendTelegramMessage(`<b>PAYMENT RECEIVED</b>\nOrder: ${o._id}`);
