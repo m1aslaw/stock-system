@@ -1,11 +1,15 @@
 const axios = require('axios');
 
-const botToken = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID;
-
 async function sendTelegramMessage(text) {
+    // Read inside function to ensure env is loaded
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+
     if (!botToken || !chatId) {
-        console.warn('Telegram not configured');
+        console.error('Telegram Error: Missing Credentials', {
+            hasToken: !!botToken,
+            hasChatId: !!chatId
+        });
         return;
     }
     try {
@@ -15,8 +19,9 @@ async function sendTelegramMessage(text) {
             text,
             parse_mode: 'HTML'
         });
+        console.log('Telegram sent successfully');
     } catch (err) {
-        console.error('Telegram send error', err?.response?.data || err.message);
+        console.error('Telegram send error:', err?.response?.data || err.message);
     }
 }
 
