@@ -18,7 +18,7 @@ We recommend **Render.com** because it has a generous free tier for Node.js.
 2.  Create a new Repository on [GitHub.com](https://github.com/new).
 3.  Push your code:
     ```bash
-    git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+    git remote add origin https://github.com/m1aslaw/stock-system.git
     git branch -M main
     git push -u origin main
     ```
