@@ -5,6 +5,7 @@ const Order = require('../models/Order');
 const User = require('../models/User');
 const { authMiddleware, adminOnly } = require('../middleware/authMiddleware');
 const bcrypt = require('bcryptjs');
+const { sendTelegramMessage } = require('../utils/telegram');
 
 // all routes here require admin
 router.use(authMiddleware, adminOnly);
@@ -50,12 +51,14 @@ router.put('/orders/:id/status', async (req, res) => {
 router.put('/orders/:id/verify', async (req, res) => {
     const o = await Order.findByIdAndUpdate(req.params.id, { status: 'verified' }, { new: true });
 
-    // Verify Payment
+    const io = req.app.get('io');
     io.emit('orderStatusChanged', {
         orderId: o._id,
         status: 'verified',
         message: "Come for the delivery within 5 minutes"
     });
+
+    await sendTelegramMessage(`<b>PAYMENT RECEIVED</b>\nOrder: ${o._id}`);
 
     res.json(o);
 });
@@ -70,6 +73,8 @@ router.put('/orders/:id/reject', async (req, res) => {
         status: 'payment_failed',
         message: "Payment details provided were wrong"
     });
+
+    await sendTelegramMessage(`<b>PAYMENT NOT RECEIVED</b>\nOrder: ${o._id}`);
 
     res.json(o);
 });
