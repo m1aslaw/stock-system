@@ -190,17 +190,17 @@
 
     <script>
         const socket = io('/');
-        let isLogin = true;
+        let isLogin = true; // defaulting to login view
         let customerToken = localStorage.getItem('customerToken');
-        let lastOrderId = null;
+        // Retrieve last order ID from storage to handle page refreshes
+        let lastOrderId = localStorage.getItem('lastOrderId');
 
         // INIT
         if (customerToken) {
             showStore();
         }
 
-        // AUTH LOGIC
-        // Only Login is allowed now. Registration is handled by Admin.
+        // --- AUTH LOGIC ---
         function toggleAuthMode() {
             alert("Registration is restricted. Contact Admin to create an account.");
         }
@@ -216,6 +216,7 @@
                 return;
             }
 
+            // Always login for now as per requirement, but keeping structure
             const url = isLogin ? '/api/auth/login' : '/api/auth/register';
             const body = isLogin ? { email, password } : { email, password, name };
 
@@ -244,6 +245,7 @@
 
         function logout() {
             localStorage.removeItem('customerToken');
+            localStorage.removeItem('lastOrderId'); // clear on logout
             location.reload();
         }
 
@@ -251,11 +253,9 @@
             document.getElementById('authSection').classList.add('hidden');
             document.getElementById('storeSection').classList.remove('hidden');
             loadProducts();
-
-            // Try to Auto-fill payment Name with user info (if we had decoded token, simplified for now)
         }
 
-        // STORE LOGIC
+        // --- STORE LOGIC ---
         function loadProducts() {
             fetch('/api/products')
                 .then(res => res.json())
@@ -336,7 +336,9 @@
 
                 if (!orderRes.ok) throw new Error(orderData.message || 'Order failed');
 
-                lastOrderId = orderData.order._id; // Track for alerts
+                // TRACK ORDER ID FOR ALERTS (Persist to handle refresh)
+                lastOrderId = orderData.order._id;
+                localStorage.setItem('lastOrderId', lastOrderId);
 
                 msg.className = 'success';
                 msg.innerText = `✅ Order Placed! ID: ${orderData.order._id}\nWait for payment verification...`;
@@ -346,20 +348,30 @@
             }
         }
 
-        // SOCKET ALERTS
+        // --- SOCKET ALERTS ---
         socket.on('orderStatusChanged', (data) => {
             console.log("Status update:", data);
-            if (lastOrderId && data.orderId === lastOrderId) {
+            // Check against stored ID
+            // We use loose comparison or check both variable and storage to be safe
+            const storedId = localStorage.getItem('lastOrderId');
+            const currentId = lastOrderId || storedId;
+
+            if (currentId && data.orderId === currentId) {
                 if (data.status === 'verified') {
                     alert(data.message); // "Come for the delivery..."
                     const msg = document.getElementById('message');
                     msg.className = 'success';
-                    msg.innerHTML = `<h2>✅ PAID</h2><p>${data.message}</p>`; // Show specific message
+                    msg.innerHTML = `<h2>✅ PAID</h2><p>${data.message}</p>`;
+
+                    // We can clear the ID now, or keep it. Clearing it stops repeated alerts for same order.
+                    localStorage.removeItem('lastOrderId');
                 } else if (data.status === 'payment_failed') {
                     alert(data.message); // "Payment details provided were wrong"
                     const msg = document.getElementById('message');
                     msg.className = 'error';
                     msg.innerHTML = `<h2>❌ Payment Failed</h2><p>${data.message}</p>`;
+                    // Don't clear ID here, as they might try to pay again? 
+                    // Actually usually they place a NEW order to retry payment in this simple flow.
                 }
             }
         });
