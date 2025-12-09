@@ -1,0 +1,369 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Customer Store - Login</title>
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f4f6f9;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .secondary-btn {
+            background-color: #6c757d;
+        }
+
+        .secondary-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .auth-switch {
+            text-align: center;
+            margin-top: 15px;
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- AUTH SECTION -->
+    <div id="authSection" class="container">
+        <h2 id="authTitle">🔐 Customer Login</h2>
+
+        <div class="form-group" id="nameGroup" class="hidden" style="display:none;">
+            <label>Full Name</label>
+            <input type="text" id="authName" placeholder="John Doe">
+        </div>
+
+        <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="authEmail" placeholder="you@example.com">
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="authPass" placeholder="••••••">
+        </div>
+
+        <button onclick="handleAuth()" id="authBtn">Login</button>
+
+        <!-- <div class="auth-switch" onclick="toggleAuthMode()" id="switchText">
+            New here? Create an account
+        </div> -->
+        <div id="authMessage"></div>
+    </div>
+
+    <!-- STORE SECTION -->
+    <div id="storeSection" class="container hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2>🛍️ Place Order</h2>
+            <button onclick="logout()" style="width:auto; padding:5px 15px; background:#dc3545;">Logout</button>
+        </div>
+
+        <div class="form-group">
+            <label>Select Product</label>
+            <select id="productId">
+                <option value="">Loading products...</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" id="qty" value="1" min="1">
+        </div>
+
+        <div class="form-group">
+            <label>Delivery Location</label>
+            <select id="mainLocation" onchange="toggleSubLocation()">
+                <option value="">Select Location...</option>
+                <option value="Qwetu/Qejani Boundary">Qwetu/Qejani Boundary</option>
+                <option value="Qejani">Qejani</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="subLocationGroup" style="display:none;">
+            <label>Qejani Kitchen Location</label>
+            <select id="subLocation">
+                <option value="Cherry Block Ground floor kitchen">Cherry Block Ground floor kitchen</option>
+                <option value="Coral Block Ground floor kitchen">Coral Block Ground floor kitchen</option>
+                <option value="Iris Block Ground floor kitchen">Iris Block Ground floor kitchen</option>
+            </select>
+        </div>
+
+        <hr>
+        <div style="background-color: #e2e6ea; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <h4>💸 Payment Required</h4>
+            <p>Please Pay via M-Pesa to: <strong>0705909477</strong></p>
+            <label>Enter M-Pesa Code or Sender Name:</label>
+            <input type="text" id="paymentDetails" placeholder="e.g. QWE123RTY or John Doe">
+        </div>
+
+        <button onclick="placeOrder()">Place Order</button>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const socket = io('/');
+        let isLogin = true;
+        let customerToken = localStorage.getItem('customerToken');
+        let lastOrderId = null;
+
+        // INIT
+        if (customerToken) {
+            showStore();
+        }
+
+        // AUTH LOGIC
+        // Only Login is allowed now. Registration is handled by Admin.
+        function toggleAuthMode() {
+            alert("Registration is restricted. Contact Admin to create an account.");
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPass').value;
+            const name = document.getElementById('authName').value;
+            const msg = document.getElementById('authMessage');
+
+            if (!email || !password) {
+                alert("Please fill all fields");
+                return;
+            }
+
+            const url = isLogin ? '/api/auth/login' : '/api/auth/register';
+            const body = isLogin ? { email, password } : { email, password, name };
+
+            msg.innerText = "Processing...";
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.message);
+
+                // Success
+                customerToken = data.token;
+                localStorage.setItem('customerToken', customerToken);
+                showStore();
+
+            } catch (e) {
+                msg.innerText = e.message;
+                msg.style.color = 'red';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('customerToken');
+            location.reload();
+        }
+
+        function showStore() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('storeSection').classList.remove('hidden');
+            loadProducts();
+
+            // Try to Auto-fill payment Name with user info (if we had decoded token, simplified for now)
+        }
+
+        // STORE LOGIC
+        function loadProducts() {
+            fetch('/api/products')
+                .then(res => res.json())
+                .then(products => {
+                    const select = document.getElementById('productId');
+                    select.innerHTML = '';
+                    if (products.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.innerText = "No products found";
+                        select.appendChild(opt);
+                        return;
+                    }
+                    products.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p._id;
+                        if (p.stock > 0) {
+                            opt.innerText = `${p.name} (Available: ${p.stock}) - KES ${p.price}`;
+                        } else {
+                            opt.innerText = `${p.name} (OUT OF STOCK) - KES ${p.price}`;
+                            opt.disabled = true;
+                        }
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error(err));
+        }
+
+        function toggleSubLocation() {
+            const main = document.getElementById('mainLocation').value;
+            const sub = document.getElementById('subLocationGroup');
+            if (main === 'Qejani') {
+                sub.style.display = 'block';
+            } else {
+                sub.style.display = 'none';
+            }
+        }
+
+        async function placeOrder() {
+            const productId = document.getElementById('productId').value;
+            const qty = parseInt(document.getElementById('qty').value);
+            const msg = document.getElementById('message');
+
+            const mainLoc = document.getElementById('mainLocation').value;
+            let deliveryLocation = mainLoc;
+            if (mainLoc === 'Qejani') {
+                const subLoc = document.getElementById('subLocation').value;
+                deliveryLocation = `${mainLoc} - ${subLoc}`;
+            }
+
+            if (!deliveryLocation) {
+                alert("Please select a delivery location");
+                return;
+            }
+
+            const paymentDetails = document.getElementById('paymentDetails').value;
+            if (!paymentDetails) {
+                alert("Please enter payment details (M-Pesa Code or Name)");
+                return;
+            }
+
+            msg.className = '';
+            msg.innerText = 'Processing...';
+
+            try {
+                const orderRes = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${customerToken}`
+                    },
+                    body: JSON.stringify({
+                        items: [{ productId, qty }],
+                        deliveryLocation: deliveryLocation,
+                        paymentDetails: paymentDetails
+                    })
+                });
+                const orderData = await orderRes.json();
+
+                if (!orderRes.ok) throw new Error(orderData.message || 'Order failed');
+
+                lastOrderId = orderData.order._id; // Track for alerts
+
+                msg.className = 'success';
+                msg.innerText = `✅ Order Placed! ID: ${orderData.order._id}\nWait for payment verification...`;
+            } catch (err) {
+                msg.className = 'error';
+                msg.innerText = `❌ Error: ${err.message}`;
+            }
+        }
+
+        // SOCKET ALERTS
+        socket.on('orderStatusChanged', (data) => {
+            console.log("Status update:", data);
+            if (lastOrderId && data.orderId === lastOrderId) {
+                if (data.status === 'verified') {
+                    alert("Paid");
+                    const msg = document.getElementById('message');
+                    msg.className = 'success';
+                    msg.innerHTML = "<h2>✅ PAID</h2><p>Come for your order within 5 minutes.</p>";
+                } else if (data.status === 'payment_failed') {
+                    alert("Wrong payment details");
+                    const msg = document.getElementById('message');
+                    msg.className = 'error';
+                    msg.innerHTML = "<h2>❌ Wrong payment details</h2><p>Please check your M-Pesa code.</p>";
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

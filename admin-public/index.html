@@ -1,0 +1,371 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Admin - New Orders</title>
+  <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px
+    }
+
+    #stats {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+
+    #alerts {
+      max-width: 720px
+    }
+
+    .alert {
+      padding: 10px;
+      border: 1px solid #ddd;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      background: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>🛡️ Admin Dashboard</h2>
+
+  <!-- Login Section -->
+  <div id="loginSection">
+    <h3>Login to Manage Stock</h3>
+    <input type="email" id="adminEmail" placeholder="admin@maslaw">
+    <input type="password" id="adminPass" placeholder="password">
+    <button onclick="adminLogin()">Login</button>
+  </div>
+
+  <!-- Dashboard Section (Hidden until login) -->
+  <div id="dashboard" style="display:none;">
+
+    <div id="stats">
+      <h3>📊 Statistics</h3>
+      <div style="margin-bottom: 10px;">
+        <button onclick="logout()" style="background-color: #6c757d;">Logout</button>
+      </div>
+      <p>Total Orders: <strong id="orderCount">0</strong></p>
+      <button onclick="fetchStats()">Refresh Stats</button>
+      <button onclick="resetSystem()" style="background-color: #dc3545; margin-left:10px;">⚠️ Reset System</button>
+
+      <h4>👥 User Management (Add Customer)</h4>
+      <div style="background: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+        <input type="text" id="newUserName" placeholder="Full Name" style="width: 30%; padding: 5px;">
+        <input type="email" id="newUserEmail" placeholder="Email" style="width: 30%; padding: 5px;">
+        <input type="text" id="newUserPass" placeholder="Password" style="width: 30%; padding: 5px;">
+        <button onclick="createNewUser()"
+          style="width: auto; padding: 5px 10px; background: #007bff; color: white; border: none; cursor: pointer;">Create
+          User</button>
+      </div>
+
+      <h4>📋 Order History</h4>
+      <table border="1" cellpadding="5"
+        style="border-collapse: collapse; width: 100%; font-size: 14px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background:#eee;">
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Location</th>
+            <th>Payment</th>
+            <th>Products Served</th>
+            <th>Total</th>
+            <th>Status / Actions</th>
+          </tr>
+        </thead>
+        <tbody id="orderHistoryBody">
+          <!-- Rows go here -->
+        </tbody>
+      </table>
+    </div>
+
+    <div id="stockManagement">
+      <h3>📦 Stock Management</h3>
+      <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Current Stock</th>
+            <th>Update Stock</th>
+          </tr>
+        </thead>
+        <tbody id="productTable"></tbody>
+      </table>
+    </div>
+
+    <h3>🔔 Live Alerts</h3>
+    <div id="alerts"></div>
+  </div>
+
+  <script>
+    const socket = io('/');
+    let authToken = localStorage.getItem('adminToken');
+
+    // Check if checks out
+    // Check if checks out
+    // if (authToken) {
+    //   showDashboard();
+    // } else {
+    // Ensure we start clean
+    localStorage.removeItem('adminToken');
+    // }
+
+    async function adminLogin() {
+      const email = document.getElementById('adminEmail').value;
+      const password = document.getElementById('adminPass').value;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        if (data.user.role !== 'admin') throw new Error("Not an admin");
+
+        authToken = data.token;
+        localStorage.setItem('adminToken', authToken);
+        showDashboard();
+      } catch (err) {
+        alert("Login Failed: " + err.message);
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      fetchStats();
+      fetchProducts();
+    }
+
+    async function fetchStats() {
+      // Fetch orders to count them
+      if (!authToken) {
+        alert("Not logged in!");
+        return;
+      }
+
+      const btn = document.querySelector('#stats button');
+      const originalText = btn.innerText;
+      btn.innerText = "Refreshing...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/orders', {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          throw new Error("Session expired. Please re-login.");
+        }
+
+        if (!res.ok) throw new Error("Failed to fetch stats");
+
+        const orders = await res.json();
+        if (!Array.isArray(orders)) throw new Error("Invalid response format");
+
+        document.getElementById('orderCount').innerText = orders.length;
+
+        // Render Order History Table
+        const tbody = document.getElementById('orderHistoryBody');
+        tbody.innerHTML = '';
+
+        orders.forEach(o => {
+          const tr = document.createElement('tr');
+
+          // Format Items: "Pen (x2), Cookie (x1)"
+          const itemsList = o.items.map(i => {
+            const pName = i.product ? i.product.name : 'Deleted Product';
+            return `${pName} (x${i.qty})`;
+          }).join(', ');
+
+          const dateStr = new Date(o.createdAt).toLocaleString();
+          const customerName = o.customer ? o.customer.name : 'Unknown';
+          // Use deliveryLocation if available
+          const loc = o.deliveryLocation || '-';
+
+          let actionHtml = '';
+          if (o.status === 'pending') {
+            actionHtml = `
+                  <button onclick="verifyOrder('${o._id}')" style="background:#28a745; color:white; padding:5px; border:none; cursor:pointer;">✅ Verify</button>
+                  <button onclick="rejectOrder('${o._id}')" style="background:#dc3545; color:white; padding:5px; border:none; cursor:pointer;">❌ Reject</button>
+              `;
+          } else {
+            actionHtml = `<span>${o.status.toUpperCase()}</span>`;
+          }
+
+          tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td>${customerName}</td>
+                <td>${loc}</td>
+                <td>${o.paymentDetails || '-'}</td>
+                <td><strong>${itemsList}</strong></td>
+                <td>KES ${o.total}</td>
+                <td>${actionHtml}</td>
+            `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (e) {
+        console.error(e);
+        alert("Error: " + e.message);
+        // If session expired, maybe logout?
+        if (e.message.includes("Session expired")) {
+          localStorage.removeItem('adminToken');
+          location.reload();
+        }
+      } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    async function fetchProducts() {
+      try {
+        const res = await fetch('/api/products'); // Public endpoint works for reading
+        const products = await res.json();
+        const tbody = document.getElementById('productTable');
+        tbody.innerHTML = '';
+
+        products.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+                    <td>${p.name}</td>
+                    <td>KES ${p.price}</td>
+                    <td><strong>${p.stock}</strong></td>
+                    <td>
+                        <input type="number" id="stock-${p._id}" value="${p.stock}" style="width: 60px">
+                        <button onclick="updateStock('${p._id}')">Update</button>
+                    </td>
+                `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) { console.error(e); }
+    }
+
+    async function updateStock(id) {
+      const newStock = document.getElementById(`stock-${id}`).value;
+      try {
+        const res = await fetch(`/api/admin/products/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ stock: newStock })
+        });
+        if (res.ok) {
+          alert("Stock Updated!");
+          fetchProducts(); // Refresh table
+        } else {
+          alert("Update failed");
+        }
+      } catch (e) { alert("Error: " + e.message); }
+    }
+
+    async function verifyOrder(id) {
+      if (!confirm("Confirm Payment Received?")) return;
+      try {
+        await fetch(`/api/admin/orders/${id}/verify`, { method: 'PUT', headers: { 'Authorization': `Bearer ${authToken}` } });
+        fetchStats(); // refresh
+      } catch (e) { alert(e.message); }
+    }
+
+    async function rejectOrder(id) {
+      if (!confirm("Mark Payment as WRONG?")) return;
+      try {
+        await fetch(`/api/admin/orders/${id}/reject`, { method: 'PUT', headers: { 'Authorization': `Bearer ${authToken}` } });
+        fetchStats(); // refresh
+      } catch (e) { alert(e.message); }
+    }
+
+    async function resetSystem() {
+      if (!confirm("⚠️ ARE YOU SURE?\n\nThis will DELETE ALL orders and set ALL stocks to 0.\n\nThis cannot be undone.")) return;
+
+      try {
+        const res = await fetch('/api/admin/reset', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          fetchStats();
+          fetchProducts();
+        } else {
+          alert("Reset Failed: " + data.message);
+        }
+      } catch (e) { alert("Error: " + e.message); }
+    }
+
+    function logout() {
+      localStorage.removeItem('adminToken');
+      location.reload();
+    }
+
+    async function createNewUser() {
+      const name = document.getElementById('newUserName').value;
+      const email = document.getElementById('newUserEmail').value;
+      const password = document.getElementById('newUserPass').value;
+
+      if (!name || !email || !password) {
+        alert("Please fill all fields");
+        return;
+      }
+
+      try {
+        // Using existing register endpoint. Since we are admin, we are just automating the creation.
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`User Created!\nEmail: ${email}\nPassword: ${password}`);
+          // Clear inputs
+          document.getElementById('newUserName').value = '';
+          document.getElementById('newUserEmail').value = '';
+          document.getElementById('newUserPass').value = '';
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (e) { alert("Error: " + e.message); }
+    }
+
+    // Socket listeners
+    socket.on('connect', () => console.log('connected to socket', socket.id));
+
+    socket.on('newOrder', data => {
+      console.log('newOrder', data);
+
+      // Update Stats & Refetch Products (to show reduced stock)
+      fetchStats();
+      fetchProducts();
+
+      const div = document.createElement('div');
+      div.className = 'alert';
+      div.innerHTML = `<b>New order</b> — Customer: ${data.customer} — Total: KES ${data.total}<br>
+                       📍 <i>${data.deliveryLocation || 'No loc'}</i><br>
+                       💳 <b>Paid: ${data.paymentDetails}</b><br>
+                       <small>Order ID: ${data.id}</small>`;
+      document.getElementById('alerts').prepend(div);
+
+      if (Notification.permission === "granted") {
+        new Notification('New Order', { body: `${data.customer} — KES ${data.total}` });
+      } else {
+        Notification.requestPermission();
+      }
+    });
+  </script>
+</body>
+
+</html>
